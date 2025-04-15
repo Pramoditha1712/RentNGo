@@ -1,0 +1,98 @@
+### get user
+get http://localhost:6700/user-api/users
+
+### post user
+post http://localhost:6700/user-api/user
+Content-Type: application/json
+
+{
+"userid": "605c72ef1532076b5d5d0c0f",
+"username": "John Doe",
+"email": "johndoe@example.com",
+"phone": 1234567890,
+"usertype": "renter",
+"address": {
+    "street": "123 Main St",
+    "city": "New York",
+    "zipcode": "10001",
+    "state": "NY"
+},
+"dateOfCreation": "2025-04-01T10:00:00Z"
+}
+
+
+### get rental
+get http://localhost:6700/rental-api/rentals
+
+### post rental
+post http://localhost:6700/rental-api/rental
+Content-Type: application/json
+
+{
+    "userId": "65f8a1d0e3a4b23c98765abc",
+    "productId": "65f8a1d0e3a4b23c98765def",
+    "rentStartDate": "2025-04-01T00:00:00.000Z",
+    "rentEndDate": "2025-04-05T00:00:00.000Z",
+    "noOfDays": 4,
+    "totalRent": 800,
+    "paymentStatus": "unpaid",
+    "lateReturnPenalty": 0,
+    "damageCharges": 0
+}
+
+### put req
+put http://localhost:6700/user-api/user/update
+Content-Type: application/json
+
+{
+  "email": "gnana@gmail.com",
+  "phone": "9876543210",
+  "address": {
+    "street": "123 Green Avenue",
+    "city": "Hyderabad",
+    "state": "Telangana",
+    "zipcode": "500023"
+  }
+}
+
+
+
+
+
+
+### get owner
+get http://localhost:6700/owner-api/owners
+
+### get by product
+get http://localhost:6700/owner-api/ownerproduct/67ec9980e82b691c863ae270
+
+###post req
+post http://localhost:6700/owner-api/owner
+Content-Type: application/json
+
+{
+  "ownerId": "661b0cbbf2e4df8d9a8f1234", 
+  "nameOfProduct": "Electric Drill Machine",
+  "description": "A powerful electric drill, suitable for home repairs and DIY projects.",
+  "category": "Tools",
+  "rentPrice": 150,
+  "availability": true,
+  "imgUrls": [
+    "https://example.com/images/drill1.jpg",
+    "https://example.com/images/drill2.jpg"
+  ],
+  "review": [
+    {
+      "userId": "661b0d8ef2e4df8d9a8f5678", 
+      "rating": 5,
+      "comment": "Very useful and in great condition!"
+    },
+    {
+      "userId": "661b0d9ef2e4df8d9a8f6789",
+      "rating": 4,
+      "comment": "Worked well for my project."
+    }
+  ]
+}
+
+
