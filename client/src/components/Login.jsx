@@ -2,23 +2,21 @@ import React, { useState, useContext, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ContextObj } from '../components/contexts/Contexts';  
+import { ContextObj } from '../components/contexts/Contexts';
 
 function Login() {
   const { register, handleSubmit, formState: { errors } } = useForm();
   const { userDetails, setUserDetails } = useContext(ContextObj); 
-  const [error, setError] = useState('');
-  const [pendingUser, setPendingUser] = useState(null); // New state
+  const [error, setError] = useState(''); 
   const navigate = useNavigate();
 
   useEffect(() => {
-    // console.log("Login Page - Updated userDetails:", userDetails);
     if (userDetails?.usertype === "owner") {
       navigate('/owner');
     } else if (userDetails?.usertype === "renter") {
       navigate('/rental');
     }
-  }, [userDetails]);
+  }, [userDetails, navigate]);
 
   async function handleLogin(data) {
     try {
@@ -33,7 +31,9 @@ function Login() {
         return;
       }
 
-      setUserDetails(loggedInUser); // Let context handle storage
+      setUserDetails(loggedInUser); // Update context
+      localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser)); // ✅ Consistent key
+
     } catch (error) {
       setError('Login failed. Please try again.');
       console.error("Login error:", error);

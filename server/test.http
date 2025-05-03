@@ -1,44 +1,117 @@
+###get cart
+get http://localhost:6700/cart-api/carts
+
+###post cart 
+POST http://localhost:6700/cart-api/cart
+Content-Type: application/json
+
+    {
+      "userId": "60d5f9b9b7d23b9c9c2a4ed4",
+      "products": [
+        {
+          "productId": "60d5f7e2b7d23b9c9c2a4ecf",
+          "name": "Wireless Mouse",
+          "description": "Ergonomic wireless mouse with long battery life.",
+          "price": 25.99,
+          "quantity": 2,
+          "imgUrls": [
+            "http://example.com/images/mouse1.jpg",
+            "http://example.com/images/mouse2.jpg"
+          ]
+        }
+      ]
+    }
+
+
+### delete product
+DELETE http://localhost:6700/cart-api/cart/680a4efeb602ec718f00f1fa/68145d58904c2092109e79a8
+
+###get order
+GET http://localhost:6700/order-api/orders/680a4efeb602ec718f00f1fa
+
+###post order
+POST http://localhost:6700/order-api/order
+Content-Type: application/json
+
+    {
+      "userId": "680a4efeb602ec718f00f1fa",
+      "products": [
+        {
+          "productId": "60d5f7e2b7d23b9c9c2a4ecf",
+          "name": "Wireless Mouse",
+          "description": "Ergonomic wireless mouse with long battery life.",
+          "price": 25.99,
+          "quantity": 2,
+          "imgUrls": [
+            "http://example.com/images/mouse1.jpg",
+            "http://example.com/images/mouse2.jpg"
+          ]
+        }
+      ],
+      "totalAmount": 51.98,
+      "address": {
+        "street": "123 Tech Ave",
+        "city": "Silicon Valley",
+        "zip": "94043",
+        "country": "USA"
+      }
+    }
+
+
+
+
 ### get user
 get http://localhost:6700/user-api/users
 
+###get by name
+get http://localhost:6700/user-api/user/name/srihasa
+
 ### post user
-post http://localhost:6700/user-api/user
+POST http://localhost:6700/user-api/user
 Content-Type: application/json
 
 {
-"userid": "605c72ef1532076b5d5d0c0f",
-"username": "John Doe",
-"email": "johndoe@example.com",
-"phone": 1234567890,
-"usertype": "renter",
-"address": {
+  "userid": "605c72ef1532076b5d5d0c0f",
+  "username": "John Does",
+  "email": "johndoes@example.com",
+  "phone": 1234567890,
+  "usertype": "renter",
+  "password": "JohnDoesss",
+  "address": {
     "street": "123 Main St",
     "city": "New York",
     "zipcode": "10001",
     "state": "NY"
-},
-"dateOfCreation": "2025-04-01T10:00:00Z"
+  },
+  "dateOfCreation": "2025-04-01T10:00:00Z"
 }
-
 
 ### get rental
 get http://localhost:6700/rental-api/rentals
 
+
 ### post rental
-post http://localhost:6700/rental-api/rental
+POST http://localhost:6700/rental-api/rental
 Content-Type: application/json
 
 {
-    "userId": "65f8a1d0e3a4b23c98765abc",
-    "productId": "65f8a1d0e3a4b23c98765def",
-    "rentStartDate": "2025-04-01T00:00:00.000Z",
-    "rentEndDate": "2025-04-05T00:00:00.000Z",
-    "noOfDays": 4,
-    "totalRent": 800,
-    "paymentStatus": "unpaid",
-    "lateReturnPenalty": 0,
-    "damageCharges": 0
+  "userId": "65f8a1d0e3a4b23c98765abc",
+  "productId": "65f8a1d0e3a4b23c98765def",
+  "productName": "Canon DSLR",
+  "productCategory": "Electronics",
+  "productDescription": "Professional camera for rent",
+  "productImage": "https://example.com/images/canon.jpg",
+  "pricePerDay": 200,
+  "rentStartDate": "2025-04-01T00:00:00.000Z",
+  "rentEndDate": "2025-04-05T00:00:00.000Z",
+  "noOfDays": 4,
+  "totalRent": 800,
+  "paymentStatus": "unpaid",
+  "lateReturnPenalty": 0,
+  "damageCharges": 0
+      
 }
+
 
 ### put req
 put http://localhost:6700/user-api/user/update
@@ -59,14 +132,13 @@ Content-Type: application/json
 
 
 
-
 ### get owner
 get http://localhost:6700/owner-api/owners
 
 ### get by product
 get http://localhost:6700/owner-api/ownerproduct/67ec9980e82b691c863ae270
 
-###post req
+###post product
 post http://localhost:6700/owner-api/owner
 Content-Type: application/json
 
@@ -94,5 +166,9 @@ Content-Type: application/json
     }
   ]
 }
+
+
+### get order by ownerId
+get http://localhost:6700/order-api/orders/owner/680a5009b602ec718f016e27
 
 

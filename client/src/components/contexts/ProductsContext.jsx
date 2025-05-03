@@ -6,9 +6,9 @@ function ProductsContext({children}) {
   let [productDetails,setProductDetails]=useState(null)
   async function handleProductData(data){
     const response=await axios.get(`http://localhost:6700/owner-api/owners`)
-    console.log(response.data.payload)
+   
     setProductDetails(response.data.payload)
-    console.log("pd",productDetails)
+    
   }
   return (
     <div>

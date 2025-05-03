@@ -21,9 +21,7 @@ ownerApp.get('/ownerproduct/:ownerid', async (req, res) => {
         res.status(500).send({ message: "Error fetching products", error: err.message });
     }
 });
-
   
-
 // create rental
 ownerApp.post('/owner',async(req,res)=>{
     const ownerde=req.body

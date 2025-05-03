@@ -1,139 +1,74 @@
 import { useContext, useEffect, useState } from "react";
-import { RentalObj } from "../contexts/RentalContext";
-import 'bootstrap/dist/css/bootstrap.min.css';
-import axios from "axios";
+import { RentalObj } from "../contexts/RentalContext"; // Adjust the import path as necessary
 
-function Rental_profile() {
-  const { rentalDetails, handleRental } = useContext(RentalObj);
-  const [editStatus, setEditStatus] = useState(false);
-  const [formData, setFormData] = useState({
-    phone: "",
-    street: "",
-    city: "",
-    state: "",
-    zipcode: ""
-  });
+const Rental_profile = () => {
+  const { handleRental, rentalDetails } = useContext(RentalObj);
+  const [isLoading, setIsLoading] = useState(true); // State for loading status
 
   useEffect(() => {
-    const username = "";
-    const usertype = "renter";
-    handleRental({ username, usertype });
-  }, []);
+    // Retrieve the logged-in user's details from localStorage
+    const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
+    
 
+    if (loggedInUser) {
+      // Call handleRental using the logged-in username and usertype
+      handleRental({ username: loggedInUser.username, usertype: loggedInUser.usertype });
+    } else {
+      console.log("No logged-in user found in localStorage");
+    }
+  }, [handleRental]); // Empty dependency array ensures it only runs once on mount
+
+  // Log the rentalDetails only when it changes and is fetched
   useEffect(() => {
     if (rentalDetails) {
-      setFormData({
-        phone: rentalDetails.phone,
-        street: rentalDetails.address.street,
-        city: rentalDetails.address.city,
-        state: rentalDetails.address.state,
-        zipcode: rentalDetails.address.zipcode
-      });
+      console.log("Fetched rental details:", rentalDetails);
+      setIsLoading(false); // Stop loading once rental details are fetched
     }
-  }, [rentalDetails]);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSave = async () => {
-    try {
-      const payload = {
-        email: rentalDetails.email, 
-        phone: formData.phone,
-        address: {
-          street: formData.street,
-          city: formData.city,
-          state: formData.state,
-          zipcode: formData.zipcode
-        }
-      };
-  
-      const res = await axios.put("http://localhost:6700/user-api/user/update", payload);
-      console.log("Updated:", res.data);
-  
-      handleRental({ username: "", usertype: "renter" });
-  
-      setEditStatus(false);
-    } catch (err) {
-      console.error("Update failed:", err);
-    }
-  };
-  
+  }, [rentalDetails]); // This will log only when rentalDetails updates
 
   return (
-    <div className="container mt-5 d-flex justify-content-center">
-      {rentalDetails ? (
-        editStatus ? (
-          <div className="w-50">
-            <input type="email" className="form-control mb-3" value={rentalDetails.email} disabled />
-            <input type="text" className="form-control mb-3" value={rentalDetails.usertype} disabled />
-            <input
-              type="number"
-              className="form-control mb-3"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
+    <div className="container mt-5">
+      {isLoading ? (
+        <div className="d-flex justify-content-center">
+          <p>Loading...</p>
+        </div>
+      ) : rentalDetails ? (
+        <div className="profile-card p-4 shadow-lg">
+          <h2>{rentalDetails.username}'s Profile</h2>
+
+          {/* Display profile picture if available */}
+          {rentalDetails.profilePicture ? (
+            <img
+              src={rentalDetails.profilePicture}
+              alt="Profile"
+              className="img-fluid rounded-circle mb-3"
+              style={{ width: "150px", height: "150px", objectFit: "cover" }}
             />
-            <input
-              type="text"
-              className="form-control mb-3"
-              name="street"
-              value={formData.street}
-              onChange={handleChange}
-            />
-            <input
-              type="text"
-              className="form-control mb-3"
-              name="city"
-              value={formData.city}
-              onChange={handleChange}
-            />
-            <input
-              type="text"
-              className="form-control mb-3"
-              name="state"
-              value={formData.state}
-              onChange={handleChange}
-            />
-            <input
-              type="text"
-              className="form-control mb-3"
-              name="zipcode"
-              value={formData.zipcode}
-              onChange={handleChange}
-            />
-            <button className="btn btn-success" onClick={handleSave}>Save</button>
-          </div>
-        ) : (
-          <div className="card shadow-lg p-4" style={{ width: "28rem", borderRadius: "15px" }}>
-            <h3 className="text-center text-primary mb-4">Renter Profile</h3>
-            <ul className="list-group list-group-flush">
-              <li className="list-group-item"><strong>Email:</strong> {rentalDetails.email}</li>
-              <li className="list-group-item"><strong>Phone:</strong> {rentalDetails.phone}</li>
-              <li className="list-group-item"><strong>User Type:</strong> {rentalDetails.usertype}</li>
-              <li className="list-group-item"><strong>Address:</strong>
-                <div className="ms-3">
-                  <p className="mb-1"><strong>Street:</strong> {rentalDetails.address.street}</p>
-                  <p className="mb-1"><strong>City:</strong> {rentalDetails.address.city}</p>
-                  <p className="mb-1"><strong>State:</strong> {rentalDetails.address.state}</p>
-                  <p className="mb-0"><strong>Zipcode:</strong> {rentalDetails.address.zipcode}</p>
-                </div>
-              </li>
-            </ul>
-            <button className="btn btn-success mt-3 w-25 mx-auto" onClick={() => setEditStatus(true)}>Edit</button>
-            <div>
-              <h3>Histroy</h3>
+          ) : (
+            <div className="mb-3">
+              <p>No Profile Picture</p>
             </div>
+          )}
+
+          {/* Dynamic fields displaying user's information */}
+          <div className="profile-info">
+            <p><strong>Username:</strong> {rentalDetails.username}</p>
+            <p><strong>Email:</strong> {rentalDetails.email || "Not available"}</p>
+            <p><strong>User Type:</strong> {rentalDetails.usertype}</p>
+            <p><strong>Phone:</strong> {rentalDetails.phone || "Not available"}</p>
+            {/* Add more fields as necessary */}
           </div>
-        )
+
+          {/* Optional: Add a button or actions for updating the profile */}
+          <button className="btn btn-primary mt-3">Edit Profile</button>
+        </div>
       ) : (
-        <div className="text-center">
-          <p className="text-muted">Loading renter profile...</p>
+        <div className="d-flex justify-content-center">
+          <p>No user details found or error occurred!</p>
         </div>
       )}
     </div>
   );
-}
+};
 
 export default Rental_profile;
