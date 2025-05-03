@@ -1,26 +1,20 @@
 ###get cart
 get http://localhost:6700/cart-api/carts
 
-###post cart 
+###get cart by userid
+get http://localhost:6700/cart-api/cart/681629bdd4de4172f7c5e45f
+
+###post cart
 POST http://localhost:6700/cart-api/cart
 Content-Type: application/json
 
-    {
-      "userId": "60d5f9b9b7d23b9c9c2a4ed4",
-      "products": [
-        {
-          "productId": "60d5f7e2b7d23b9c9c2a4ecf",
-          "name": "Wireless Mouse",
-          "description": "Ergonomic wireless mouse with long battery life.",
-          "price": 25.99,
-          "quantity": 2,
-          "imgUrls": [
-            "http://example.com/images/mouse1.jpg",
-            "http://example.com/images/mouse2.jpg"
-          ]
-        }
-      ]
-    }
+{
+  "userId": "6634c087b8f1e2b3a7a0f159",
+  "productId": "68162acfd4de4172f7c668a1",
+  "quantity": 1
+}
+
+
 
 
 ### delete product
@@ -170,5 +164,3 @@ Content-Type: application/json
 
 ### get order by ownerId
 get http://localhost:6700/order-api/orders/owner/680a5009b602ec718f016e27
-
-

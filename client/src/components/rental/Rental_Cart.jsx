@@ -1,193 +1,282 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ContextObj } from '../contexts/Contexts';
 
 function Rental_Cart() {
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [total, setTotal] = useState(0);
-  const [addedToTotal, setAddedToTotal] = useState([]);
-  const [address, setAddress] = useState({
-    street: "Default Street",
-    city: "City",
-    state: "State",
-    country: "India",
-    zip: "000000"
-  });
+  const navigate = useNavigate();
+  const { userDetails } = useContext(ContextObj);
 
-  const user = JSON.parse(localStorage.getItem("user"));
-
-  if (!user) {
-    alert("Please log in first!");
-    return <div>Please log in to continue.</div>;
-  }
-  const fetchCart = async () => {
-    try {
-      const response = await fetch(`http://localhost:6700/cart-api/cart/${user._id}`);
-      const data = await response.json();
-  
-      if (response.ok) {
-        setCart(data.payload);
-      } else {
-        setError(data.message || 'Failed to fetch cart');
-      }
-    } catch (err) {
-      console.error('Error fetching cart:', err);
-      setError('Error fetching cart details');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
+  // Get user data from context or localStorage
+  const currentUser = userDetails || JSON.parse(localStorage.getItem('loggedInUser'));
+  const userId = currentUser?._id;
 
   useEffect(() => {
-    fetchCart();
-  }, []);
+    if (!currentUser) {
+      setError("Please login to view your cart");
+      setLoading(false);
+      navigate('/login');
+      return;
+    }
 
-  const handleRemove = async (productId) => {
-    try {
-      const res = await fetch(`http://localhost:6700/cart-api/cart/${user._id}/${productId}`, {
-        method: 'DELETE',
-      });
+    const fetchCart = async () => {
+      try {
+        const response = await fetch(`http://localhost:6700/cart-api/cart/${userId}`);
+        if (!response.ok) {
+          if (response.status === 401) {
+            navigate('/login');
+            return;
+          }
+          throw new Error(`Failed to fetch cart: ${response.status}`);
+        }
 
-      const data = await res.json();
-
-      if (res.ok) {
-        alert("Product removed from cart");
-        setCart(data.payload);
-        setTotal(0);
-        setAddedToTotal([]);
-      } else {
-        alert(data.message || "Failed to remove product");
+        const data = await response.json();
+        
+        if (data.success && data.cart) {
+          const validatedCart = {
+            ...data.cart,
+            products: data.cart.products?.map(product => ({
+              ...product,
+              ownerId: product.ownerId || { username: 'Unknown owner' },
+              imgUrls: product.imgUrls || [],
+              quantity: product.quantity || 1,
+              price: product.price || 0
+            })) || []
+          };
+          setCart(validatedCart);
+        } else {
+          setError(data.message || "Cart not found");
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Error removing product:", err);
-      alert("Error removing product from cart");
-    }
-  };
-
-  const toggleTotal = (productId, price, quantity = 1) => {
-    const isAdded = addedToTotal.includes(productId);
-    const amount = price * quantity;
-
-    if (isAdded) {
-      setTotal(prev => prev - amount);
-      setAddedToTotal(prev => prev.filter(id => id !== productId));
-    } else {
-      setTotal(prev => prev + amount);
-      setAddedToTotal(prev => [...prev, productId]);
-    }
-  };
-
-  const handleRentNow = async () => {
-    if (!cart || !cart.products || cart.products.length === 0) {
-      alert("Cart is empty!");
-      return;
-    }
-
-    if (total <= 0) {
-      alert("Please add some products to the total before placing the order.");
-      return;
-    }
-
-    const products = cart.products
-      .filter(p => addedToTotal.includes(p.productId))
-      .map(product => ({
-        productId: product.productId,
-        ownerId: product.ownerId,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        quantity: product.quantity,
-        imgUrls: product.imgUrls || []
-      }));
-
-    const orderPayload = {
-      userId: user._id,
-      address,
-      products,
-      totalAmount: total
     };
 
-    console.log('Order Payload:', orderPayload);
+    fetchCart();
+  }, [userId, currentUser, navigate]);
 
+  const handleQuantityChange = async (productId, newQuantity) => {
+    if (newQuantity < 1) return;
+    
     try {
-      const response = await fetch('http://localhost:6700/order-api/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderPayload),
+      const response = await fetch(`http://localhost:6700/cart-api/cart/${userId}/update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId,
+          quantity: newQuantity
+        })
       });
 
-      const data = await response.json();
-      console.log("Response Data:", data);
+      if (!response.ok) throw new Error(`Update failed: ${response.status}`);
 
-      if (response.ok) {
-        alert('Order placed successfully!');
-        setCart(null); // Reset cart
-        setTotal(0);
-        setAddedToTotal([]);
-        fetchCart(); // Refresh cart
-      } else {
-        alert(`Failed to place order: ${data.message || 'Unknown error'}`);
-        console.error('Error details:', data);
+      const data = await response.json();
+      if (data.success) {
+        setCart(data.updatedCart);
       }
     } catch (err) {
-      console.error('Error creating order:', err);
-      alert('Error placing order');
+      console.error("Error updating quantity:", err);
+      setError("Failed to update quantity");
     }
   };
 
-  if (loading) return <div>Loading cart...</div>;
-  if (error) return <div>{error}</div>;
-  if (!cart || !cart.products || cart.products.length === 0) {
-    return <h2 className="text-center mt-4">Your Cart is empty</h2>;
+  const handleRemoveItem = async (productId) => {
+    try {
+      const response = await fetch(`http://localhost:6700/cart-api/cart/${userId}/remove`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ productId })
+      });
+
+      if (!response.ok) throw new Error(`Removal failed: ${response.status}`);
+
+      const data = await response.json();
+      if (data.success) {
+        setCart(data.updatedCart);
+      }
+    } catch (err) {
+      console.error("Error removing item:", err);
+      setError("Failed to remove item");
+    }
+  };
+
+  const calculateTotal = () => {
+    if (!cart?.products) return 0;
+    return cart.products.reduce((total, product) => {
+      return total + ((product.price || 0) * (product.quantity || 1));
+    }, 0);
+  };
+
+  const handleCheckout = () => {
+    navigate('/checkout');
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="alert alert-danger text-center mt-5 mx-auto" style={{ maxWidth: '500px' }}>
+        {error}
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="alert alert-warning text-center mt-5 mx-auto" style={{ maxWidth: '500px' }}>
+        Please login to view your cart
+      </div>
+    );
+  }
+
+  if (!cart || !cart.products?.length) {
+    return (
+      <div className="container mt-5">
+        <div className="card text-center">
+          <div className="card-body py-5">
+            <h2 className="card-title">Your cart is empty</h2>
+            <p className="card-text">Start shopping to add items to your cart</p>
+            <button 
+              className="btn btn-primary"
+              onClick={() => navigate('/rental')}
+            >
+              Continue Shopping
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="container py-4">
-      <h2 className="text-center mb-4">Your Cart</h2>
+    <div className="container my-5">
       <div className="row">
-        {cart.products.map((product, index) => (
-          <div key={index} className="col-md-4 mb-4 p-2">
-            <div className="card h-100 shadow-sm">
-              {product.imgUrls?.[0] && (
-                <img
-                  src={product.imgUrls[0]}
-                  className="card-img-top p-3"
-                  alt={product.name}
-                  style={{ height: '400px', width: '100%', objectFit: 'cover' }}
-                />
-              )}
-              <div className="card-body">
-                <h5 className="card-title">{product.name}</h5>
-                <p className="card-text">{product.description}</p>
-                <p><strong>Price:</strong> ₹{product.price}</p>
-                <p><strong>Quantity:</strong> {product.quantity}</p>
-                <button
-                  className="btn btn-danger me-3"
-                  onClick={() => handleRemove(product.productId)}
-                >
-                  Remove from cart
-                </button>
-                <button
-                  className={`btn ${addedToTotal.includes(product.productId) ? 'btn-warning' : 'btn-success'}`}
-                  onClick={() => toggleTotal(product.productId, product.price, product.quantity)}
-                >
-                  {addedToTotal.includes(product.productId) ? 'Remove from Total' : 'Add to Total'}
-                </button>
+        <div className="col-lg-8">
+          <div className="card mb-4">
+            <div className="card-header bg-white">
+              <h2 className="mb-0">Your Rental Cart</h2>
+            </div>
+            <div className="card-body">
+              <p className="text-muted">
+                <small>Cart created: {new Date(cart.createdAt).toLocaleDateString()}</small>
+              </p>
+              
+              <div className="list-group">
+                {cart.products.map((product) => (
+                  <div key={product.productId || Math.random()} className="list-group-item mb-3 border rounded">
+                    <div className="row g-0">
+                      <div className="col-md-3">
+                        {product.imgUrls?.[0] ? (
+                          <img 
+                            src={product.imgUrls[0]} 
+                            className="img-fluid rounded-start"
+                            alt={product.name || 'Product image'} 
+                            onError={(e) => {
+                              e.target.src = 'https://via.placeholder.com/200';
+                              e.target.className = 'img-fluid rounded-start bg-light';
+                            }}
+                          />
+                        ) : (
+                          <div className="d-flex align-items-center justify-content-center bg-light rounded-start" style={{ height: '100%', minHeight: '150px' }}>
+                            <span className="text-muted">No Image</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="col-md-9">
+                        <div className="card-body">
+                          <div className="d-flex justify-content-between">
+                            <h5 className="card-title">{product.name || 'Unnamed product'}</h5>
+                            <button 
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => handleRemoveItem(product.productId)}
+                            >
+                              <i className="bi bi-trash"></i> Remove
+                            </button>
+                          </div>
+                          <p className="card-text text-muted small">{product.description || 'No description available'}</p>
+                          <p className="card-text">
+                            <small className="text-muted">Owner: {product.ownerId?.username || 'Unknown owner'}</small>
+                          </p>
+                          
+                          <div className="d-flex align-items-center justify-content-between mt-3">
+                            <div className="input-group" style={{ width: '120px' }}>
+                              <button 
+                                className="btn btn-outline-secondary"
+                                onClick={() => handleQuantityChange(product.productId, (product.quantity || 1) - 1)}
+                                disabled={(product.quantity || 1) <= 1}
+                              >
+                                -
+                              </button>
+                              <span className="form-control text-center">{product.quantity || 1}</span>
+                              <button 
+                                className="btn btn-outline-secondary"
+                                onClick={() => handleQuantityChange(product.productId, (product.quantity || 1) + 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+                            
+                            <h6 className="mb-0">
+                              ${((product.price || 0) * (product.quantity || 1)).toFixed(2)}
+                            </h6>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-        ))}
-      </div>
-
-      <div className="text-center mt-4">
-        <h4>Total Amount: ₹{total}</h4>
-        <button
-          className="btn btn-primary mt-3"
-          onClick={handleRentNow}
-        >
-          Rent Now
-        </button>
+        </div>
+        
+        <div className="col-lg-4">
+          <div className="card mb-4">
+            <div className="card-header bg-white">
+              <h3 className="mb-0">Order Summary</h3>
+            </div>
+            <div className="card-body">
+              <ul className="list-group list-group-flush">
+                <li className="list-group-item d-flex justify-content-between align-items-center">
+                  Subtotal:
+                  <span>${calculateTotal().toFixed(2)}</span>
+                </li>
+                <li className="list-group-item d-flex justify-content-between align-items-center">
+                  Estimated Tax:
+                  <span>$0.00</span>
+                </li>
+                <li className="list-group-item d-flex justify-content-between align-items-center fw-bold">
+                  Total:
+                  <span>${calculateTotal().toFixed(2)}</span>
+                </li>
+              </ul>
+              
+              <button 
+                className="btn btn-primary w-100 mt-3 py-2"
+                onClick={handleCheckout}
+                disabled={!cart.products.length}
+              >
+                Proceed to Checkout
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

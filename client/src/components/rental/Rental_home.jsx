@@ -1,19 +1,21 @@
 import { useContext, useEffect, useState } from "react";
 import { productObj } from "../contexts/ProductsContext";
 import { useOutletContext } from "react-router-dom";
+import { toast } from 'react-toastify';
 
 function Rental_home() {
+  const [successMessages, setSuccessMessages] = useState({});
   const { handleProductData, productDetails } = useContext(productObj);
   const { searchQuery } = useOutletContext();
-  const [filteredProducts, setFilteredProducts] = useState(productDetails || []); // Default to empty array
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [loadingStates, setLoadingStates] = useState({});
 
   // Fetch product data when the component mounts
   useEffect(() => {
     handleProductData();
   }, [handleProductData]);
 
-  // Filter products based on the search query
+  // Filter products based on search query
   useEffect(() => {
     if (productDetails) {
       const filtered = productDetails.filter((product) =>
@@ -25,43 +27,55 @@ function Rental_home() {
     }
   }, [searchQuery, productDetails]);
 
-  // Handle adding a product to the cart
   async function handleAddToCart(product) {
-    if (isAddingToCart) return; // Prevent multiple clicks
-
-    const user = JSON.parse(localStorage.getItem('user'));
+    const user = JSON.parse(localStorage.getItem('loggedInUser'));
+    
     if (!user || !user._id) {
-      alert("Please log in to add items to cart.");
+      toast.error("Please log in to add items to cart.");
       return;
     }
-
-    setIsAddingToCart(true); // Disable the button while adding
-
+  
+    setLoadingStates(prev => ({ ...prev, [product._id]: true }));
+  
     try {
-      const response = await fetch('http://localhost:6700/cart-api/cart', { // Ensure the correct backend URL is used
+      const response = await fetch('http://localhost:6700/cart-api/cart', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           userId: user._id,
-          productId: product._id, // Send the productId, not an array
+          products: [{
+            productId: product._id,
+            ownerId: product.ownerId,
+            name: product.nameOfProduct,
+            description: product.description,
+            price: product.rentPrice,
+            imgUrls: product.imgUrls,
+            quantity: 1
+          }]
         }),
       });
-
+  
+      const result = await response.json();
+      
       if (!response.ok) {
-        const errorData = await response.text(); // Get the response text in case of an error
-        console.error('Error:', errorData);
-        alert(`Error: ${response.statusText}`);
-        return;
+        throw new Error(result.error || 'Failed to add to cart');
       }
-
-      const data = await response.json();
-      alert(`${product.nameOfProduct} added to cart!`);
-      console.log('Cart:', data.payload);
-    } catch (err) {
-      console.error('Add to cart error:', err);
-      alert('Error occurred while adding to cart.');
+  
+      // Show toast and set success message
+      toast.success(`${product.nameOfProduct} added to cart!`);
+      setSuccessMessages(prev => ({ ...prev, [product._id]: true }));
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessages(prev => ({ ...prev, [product._id]: false }));
+      }, 3000);
+  
+    } catch (error) {
+      toast.error(error.message || 'Error adding to cart. Please try again.');
     } finally {
-      setIsAddingToCart(false); // Re-enable the button after the request is done
+      setLoadingStates(prev => ({ ...prev, [product._id]: false }));
     }
   }
 
@@ -69,7 +83,7 @@ function Rental_home() {
     <div className="container py-4">
       <h2 className="text-center mb-4">All Rental Products</h2>
       <div className="row">
-        {filteredProducts && filteredProducts.length === 0 ? (
+        {filteredProducts.length === 0 ? (
           <p className="text-center">No products available.</p>
         ) : (
           filteredProducts.map((product, index) => (
@@ -88,15 +102,39 @@ function Rental_home() {
                   <p className="card-text">{product.description}</p>
                   <p><strong>Category:</strong> {product.category}</p>
                   <p><strong>Rent:</strong> ₹{product.rentPrice} / day</p>
-                  <p><strong>Status:</strong> {product.availability ? "Available" : "Not Available"}</p>
+                  <p><strong>Status:</strong> 
+                    <span className={product.availability ? "text-success" : "text-danger"}>
+                      {product.availability ? " Available" : " Not Available"}
+                    </span>
+                  </p>
                 </div>
                 <button
-                  className={`btn btn-primary w-50 mx-auto mb-3 ${isAddingToCart ? 'disabled' : ''}`}
+                  className={`btn btn-primary w-50 mx-auto mb-3 ${
+                    loadingStates[product._id] ? 'disabled' : ''
+                  } ${
+                    !product.availability ? 'btn-secondary' : ''
+                  }`}
                   onClick={() => handleAddToCart(product)}
-                  disabled={isAddingToCart}
+                  disabled={loadingStates[product._id] || !product.availability}
                 >
-                  {isAddingToCart ? 'Adding...' : 'Add to cart'}
+                  {loadingStates[product._id] ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Adding...
+                    </>
+                  ) : product.availability ? (
+                    'Add to cart'
+                  ) : (
+                    'Not Available'
+                  )}
                 </button>
+                {/* Inside your product card, after the button */}
+{successMessages[product._id] && (
+  <div className="text-center text-success mb-2">
+    <i className="bi bi-check-circle-fill me-2"></i>
+    Added to cart!
+  </div>
+)}
               </div>
             </div>
           ))
