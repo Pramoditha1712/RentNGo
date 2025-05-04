@@ -12,6 +12,8 @@ import Owner_profile from './components/owner/Owner_profile'
 import Owner_Products from './components/owner/Owner_Products'
 import Rental_Cart from './components/rental/Rental_Cart'
 import Rental_order from './components/rental/Rental_order'
+import OrderedDetails from './components/rental/OrderedDetails'
+import Orders_Display from './components/owner/Orders_Display'
 
 function App() {
   const router = createBrowserRouter([
@@ -48,8 +50,8 @@ function App() {
               element:<Rental_Cart />
             },
             {
-              path:"rentalorder",
-              element:<Rental_order/>
+              path:"orderedDetails",
+              element:<OrderedDetails/>
             }
           ]
         },
@@ -62,18 +64,24 @@ function App() {
               element:<Owner_addproducts />
             },
             {
-              path:"",
-              element:<Owner_profile />
-            },
-            {
               path:"owner-products",
               element:<Owner_Products />
-            }
+            },
+            {
+              path:"ordersdisplay",
+              element:<Orders_Display />
+            },
 
           ]
-        }
+          
+        },
+        {
+          path:"user/name/:username",
+          element:<Owner_profile />
+        },
+
       ]
-    }
+    },
   ])
   return (
     <div>

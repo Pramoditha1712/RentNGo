@@ -1,15 +1,20 @@
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ContextObj } from '../contexts/Contexts';
+import Modal from 'react-bootstrap/Modal';
+import Button from 'react-bootstrap/Button';
 
 function Rental_Cart() {
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showOwnerModal, setShowOwnerModal] = useState(false);
+  const [selectedOwner, setSelectedOwner] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
   const navigate = useNavigate();
   const { userDetails } = useContext(ContextObj);
 
-  // Get user data from context or localStorage
   const currentUser = userDetails || JSON.parse(localStorage.getItem('loggedInUser'));
   const userId = currentUser?._id;
 
@@ -23,7 +28,7 @@ function Rental_Cart() {
 
     const fetchCart = async () => {
       try {
-        const response = await fetch(`http://localhost:6700/cart-api/cart/${userId}`);
+        const response = await fetch(`http://localhost:6700/cart-api/cart-with-owners/${userId}`);
         if (!response.ok) {
           if (response.status === 401) {
             navigate('/login');
@@ -33,19 +38,8 @@ function Rental_Cart() {
         }
 
         const data = await response.json();
-        
-        if (data.success && data.cart) {
-          const validatedCart = {
-            ...data.cart,
-            products: data.cart.products?.map(product => ({
-              ...product,
-              ownerId: product.ownerId || { username: 'Unknown owner' },
-              imgUrls: product.imgUrls || [],
-              quantity: product.quantity || 1,
-              price: product.price || 0
-            })) || []
-          };
-          setCart(validatedCart);
+        if (data.success && data.payload) {
+          setCart(validateCart(data.payload));
         } else {
           setError(data.message || "Cart not found");
         }
@@ -59,52 +53,83 @@ function Rental_Cart() {
     fetchCart();
   }, [userId, currentUser, navigate]);
 
+  const validateCart = (cartData) => {
+    if (!cartData) return null;
+
+    return {
+      ...cartData,
+      products: cartData.products?.map(product => ({
+        ...product,
+        _id: product._id || product.productId,
+        imgUrls: product.imgUrls || [],
+        quantity: product.quantity || 1,
+        price: product.price || product.rentPrice || 0,
+        ownerDetails: product.ownerDetails
+      })) || []
+    };
+  };
+
+  const handleViewOwnerDetails = (ownerDetails) => {
+    setSelectedOwner(ownerDetails);
+    setShowOwnerModal(true);
+  };
+
+  const handleCloseOwnerModal = () => {
+    setShowOwnerModal(false);
+    setSelectedOwner(null);
+  };
+
   const handleQuantityChange = async (productId, newQuantity) => {
     if (newQuantity < 1) return;
-    
+
+    const updatedProducts = cart.products.map(product =>
+      product.productId === productId ? { ...product, quantity: newQuantity } : product
+    );
+    setCart({ ...cart, products: updatedProducts });
+
     try {
-      const response = await fetch(`http://localhost:6700/cart-api/cart/${userId}/update`, {
+      const response = await fetch('http://localhost:6700/cart-api/update-quantity', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          productId,
-          quantity: newQuantity
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, productId, quantity: newQuantity })
       });
 
-      if (!response.ok) throw new Error(`Update failed: ${response.status}`);
-
       const data = await response.json();
-      if (data.success) {
-        setCart(data.updatedCart);
+      if (data.success && data.updatedCart) {
+        setCart(validateCart(data.updatedCart));
       }
     } catch (err) {
-      console.error("Error updating quantity:", err);
       setError("Failed to update quantity");
     }
   };
 
   const handleRemoveItem = async (productId) => {
+    const confirmDelete = window.confirm('Are you sure you want to remove this item from your cart?');
+    if (!confirmDelete) return;
+
     try {
-      const response = await fetch(`http://localhost:6700/cart-api/cart/${userId}/remove`, {
+      setCart(prevCart => ({
+        ...prevCart,
+        products: prevCart.products.filter(product => product._id !== productId)
+      }));
+
+      await fetch(`http://localhost:6700/cart-api/cart/${userId}/${productId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ productId })
       });
 
-      if (!response.ok) throw new Error(`Removal failed: ${response.status}`);
+      const refreshResponse = await fetch(`http://localhost:6700/cart-api/cart-with-owners/${userId}`);
+      const refreshData = await refreshResponse.json();
 
-      const data = await response.json();
-      if (data.success) {
-        setCart(data.updatedCart);
+      if (refreshData.success && refreshData.payload) {
+        setCart(validateCart(refreshData.payload));
       }
     } catch (err) {
-      console.error("Error removing item:", err);
       setError("Failed to remove item");
+      const revertResponse = await fetch(`http://localhost:6700/cart-api/cart-with-owners/${userId}`);
+      const revertData = await revertResponse.json();
+      if (revertData.success && revertData.payload) {
+        setCart(validateCart(revertData.payload));
+      }
     }
   };
 
@@ -115,8 +140,26 @@ function Rental_Cart() {
     }, 0);
   };
 
-  const handleCheckout = () => {
-    navigate('/checkout');
+  const handleOrderNow = async () => {
+    try {
+      const response = await fetch('http://localhost:6700/order-api/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setOrderSuccess(true);
+        setCart({ ...cart, products: [] });
+      } else {
+        throw new Error(data.message || 'Failed to place order');
+      }
+    } catch (err) {
+      setError(`Error placing order: ${err.message}`);
+    } finally {
+      setShowConfirmModal(false);
+    }
   };
 
   if (loading) {
@@ -145,6 +188,27 @@ function Rental_Cart() {
     );
   }
 
+  if (orderSuccess) {
+    return (
+      <div className="container mt-5">
+        <div className="card text-center">
+          <div className="card-body py-5">
+            <div className="alert alert-success">
+              <h4 className="alert-heading">Order Placed Successfully!</h4>
+              <p>Your order has been confirmed. Thank you for shopping with us.</p>
+            </div>
+            <button 
+              className="btn btn-primary mt-3"
+              onClick={() => navigate('/rental/orderedDetails')}
+            >
+              View Your Orders
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!cart || !cart.products?.length) {
     return (
       <div className="container mt-5">
@@ -152,10 +216,7 @@ function Rental_Cart() {
           <div className="card-body py-5">
             <h2 className="card-title">Your cart is empty</h2>
             <p className="card-text">Start shopping to add items to your cart</p>
-            <button 
-              className="btn btn-primary"
-              onClick={() => navigate('/rental')}
-            >
+            <button className="btn btn-primary" onClick={() => navigate('/rental')}>
               Continue Shopping
             </button>
           </div>
@@ -176,17 +237,17 @@ function Rental_Cart() {
               <p className="text-muted">
                 <small>Cart created: {new Date(cart.createdAt).toLocaleDateString()}</small>
               </p>
-              
+
               <div className="list-group">
                 {cart.products.map((product) => (
-                  <div key={product.productId || Math.random()} className="list-group-item mb-3 border rounded">
+                  <div key={product.productId} className="list-group-item mb-3 border rounded">
                     <div className="row g-0">
                       <div className="col-md-3">
                         {product.imgUrls?.[0] ? (
-                          <img 
-                            src={product.imgUrls[0]} 
+                          <img
+                            src={product.imgUrls[0]}
                             className="img-fluid rounded-start"
-                            alt={product.name || 'Product image'} 
+                            alt={product.name || 'Product image'}
                             onError={(e) => {
                               e.target.src = 'https://via.placeholder.com/200';
                               e.target.className = 'img-fluid rounded-start bg-light';
@@ -202,38 +263,45 @@ function Rental_Cart() {
                         <div className="card-body">
                           <div className="d-flex justify-content-between">
                             <h5 className="card-title">{product.name || 'Unnamed product'}</h5>
-                            <button 
+                            <button
                               className="btn btn-sm btn-outline-danger"
-                              onClick={() => handleRemoveItem(product.productId)}
+                              onClick={() => handleRemoveItem(product._id)}
                             >
                               <i className="bi bi-trash"></i> Remove
                             </button>
                           </div>
                           <p className="card-text text-muted small">{product.description || 'No description available'}</p>
-                          <p className="card-text">
-                            <small className="text-muted">Owner: {product.ownerId?.username || 'Unknown owner'}</small>
-                          </p>
-                          
+
+                          <div className="d-flex align-items-center mb-2">
+                            <span className="me-2">Owner:</span>
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => handleViewOwnerDetails(product.ownerDetails)}
+                            >
+                              {product.ownerDetails?.username || 'Unknown owner'}
+                            </button>
+                          </div>
+
                           <div className="d-flex align-items-center justify-content-between mt-3">
                             <div className="input-group" style={{ width: '120px' }}>
-                              <button 
+                              <button
                                 className="btn btn-outline-secondary"
-                                onClick={() => handleQuantityChange(product.productId, (product.quantity || 1) - 1)}
-                                disabled={(product.quantity || 1) <= 1}
+                                onClick={() => handleQuantityChange(product.productId, product.quantity - 1)}
+                                disabled={product.quantity <= 1}
                               >
                                 -
                               </button>
-                              <span className="form-control text-center">{product.quantity || 1}</span>
-                              <button 
+                              <span className="form-control text-center">{product.quantity}</span>
+                              <button
                                 className="btn btn-outline-secondary"
-                                onClick={() => handleQuantityChange(product.productId, (product.quantity || 1) + 1)}
+                                onClick={() => handleQuantityChange(product.productId, product.quantity + 1)}
                               >
                                 +
                               </button>
                             </div>
-                            
+
                             <h6 className="mb-0">
-                              ${((product.price || 0) * (product.quantity || 1)).toFixed(2)}
+                              ${(product.price * product.quantity).toFixed(2)}
                             </h6>
                           </div>
                         </div>
@@ -245,7 +313,7 @@ function Rental_Cart() {
             </div>
           </div>
         </div>
-        
+
         <div className="col-lg-4">
           <div className="card mb-4">
             <div className="card-header bg-white">
@@ -266,18 +334,58 @@ function Rental_Cart() {
                   <span>${calculateTotal().toFixed(2)}</span>
                 </li>
               </ul>
-              
-              <button 
-                className="btn btn-primary w-100 mt-3 py-2"
-                onClick={handleCheckout}
-                disabled={!cart.products.length}
+
+              <button
+                className="btn btn-success w-100 mt-3 py-2"
+                onClick={() => setShowConfirmModal(true)}
               >
-                Proceed to Checkout
+                Order Now
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Owner Details Modal */}
+      <Modal show={showOwnerModal} onHide={handleCloseOwnerModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>Owner Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedOwner ? (
+            <div>
+              <p><strong>Name:</strong> {selectedOwner.username}</p>
+              <p><strong>Email:</strong> {selectedOwner.email || 'Not provided'}</p>
+              <p><strong>Phone:</strong> {selectedOwner.phone || 'Not provided'}</p>
+            </div>
+          ) : (
+            <p>No owner details available</p>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseOwnerModal}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Order Confirmation Modal */}
+      <Modal show={showConfirmModal} onHide={() => setShowConfirmModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Your Order</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>Are you sure you want to place this order for ${calculateTotal().toFixed(2)}?</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleOrderNow}>
+            Confirm Order
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }

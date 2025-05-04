@@ -1,3 +1,70 @@
+###get orders
+get http://localhost:6700/order-api/orders/6816580a3123a2572a610c97
+
+###get orders by owner
+GET http://localhost:6700/order-api/orders/owner/6816e3509a3393054edd1666
+
+
+### post order
+post http://localhost:6700/order-api/order
+Content-Type: application/json
+
+{
+  "userId": "6816580a3123a2572a610c97",
+  "userDetails": {
+    "name": "Your Name",
+    "email": "your.email@example.com",
+    "phone": "9876543210",
+    "address": "123 Sample Street, City, Country"
+  },
+  "products": [
+    {
+      "productId": "681642f47a0b4574e7eaf6b5",
+      "ownerId": "681629e2d4de4172f7c5f969",
+      "ownerDetails": {
+        "name": "hasini",
+        "email": "hasini@gmail.com",
+        "phone": "9876567898"
+      },
+      "name": "table",
+      "description": "tableeeee",
+      "price": 12343,
+      "quantity": 3,
+      "imgUrls": [
+        "https://5.imimg.com/data5/CV/YM/UY/SELLER-26485539/teak-wood-table.jpg"
+      ],
+      "status": "Pending"
+    },
+    {
+      "productId": "6816e87e0fa0210e266a9c04",
+      "ownerId": "6816e3509a3393054edd1666",
+      "ownerDetails": {
+        "name": "gagana",
+        "email": "gagana@gmail.com",
+        "phone": "2345676543"
+      },
+      "name": "ac",
+      "description": "acc cooler hehe",
+      "price": 87656,
+      "quantity": 1,
+      "imgUrls": [
+        "https://api.cphwpfzsns-daikinair1-p1-public.model-t.cc.commerce.ondemand.com/medias/?context=bWFzdGVyfGltYWdlc3w3MDE0ODV8aW1hZ2UvcG5nfGFHSTJMMmcwT0M4NU56TXdNamc0TnpjNU1qazB8OWNlYTRhMTc3MWRjODNhNjZiNTNiOGRkZmNjZThkYmY5YTllMTEwNDY3MTk5NjJiY2U4ZTRkYjk1ZTBjYTkwYQ"
+      ],
+      "status": "Pending"
+    }
+  ],
+  "totalAmount": 124685,
+  "paymentStatus": "Pending"
+}
+
+
+
+
+
+
+
+
+
 ###get cart
 get http://localhost:6700/cart-api/carts
 
@@ -14,11 +81,28 @@ Content-Type: application/json
   "quantity": 1
 }
 
+###put cart
+put http://localhost:6700/cart-api/update-quantity
+Content-Type: application/json
+
+{
+  "userId": "681629bdd4de4172f7c5e45f",
+  "productId": "681642f47a0b4574e7eaf6b5",
+  "quantity": 5
+}
+
+
+### delete cart
+DELETE http://localhost:6700/cart-api/cart/6816580a3123a2572a610c97/68162acfd4de4172f7c668a1
+
+
+###cart with owner name
+get http://localhost:6700/cart-api/cart-with-owners/6816580a3123a2572a610c97
 
 
 
-### delete product
-DELETE http://localhost:6700/cart-api/cart/680a4efeb602ec718f00f1fa/68145d58904c2092109e79a8
+
+
 
 ###get order
 GET http://localhost:6700/order-api/orders/680a4efeb602ec718f00f1fa
@@ -58,7 +142,7 @@ Content-Type: application/json
 get http://localhost:6700/user-api/users
 
 ###get by name
-get http://localhost:6700/user-api/user/name/srihasa
+get http://localhost:6700/user-api/user/name/gagana
 
 ### post user
 POST http://localhost:6700/user-api/user
@@ -128,6 +212,9 @@ Content-Type: application/json
 
 ### get owner
 get http://localhost:6700/owner-api/owners
+
+###get owner by id
+get http://localhost:6700/owner-api/owner-by-ownerId/6816e3509a3393054edd1666
 
 ### get by product
 get http://localhost:6700/owner-api/ownerproduct/67ec9980e82b691c863ae270
