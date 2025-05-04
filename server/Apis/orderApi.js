@@ -137,7 +137,6 @@ orderApp.get('/orders/owner/:ownerId', async (req, res) => {
   try {
     const { ownerId } = req.params;
 
-    // Validate ownerId
     if (!mongoose.Types.ObjectId.isValid(ownerId)) {
       return res.status(400).json({
         success: false,
@@ -145,16 +144,10 @@ orderApp.get('/orders/owner/:ownerId', async (req, res) => {
       });
     }
 
-    // Find orders containing products owned by this owner
-    const orders = await Order.find({ 'products.ownerId': ownerId.toString() })
-      .populate({
-        path: 'userId',
-        select: 'username email phone'
-      })
-      .populate({
-        path: 'products.productId',
-        select: 'name description imgUrls'
-      })
+    // Find all orders that include at least one product with the given ownerId
+    const orders = await Order.find({ 'products.ownerId': ownerId })
+      .populate('userId', 'username email phone')
+      .populate('products.productId', 'name description imgUrls')
       .sort({ createdAt: -1 });
 
     if (!orders.length) {
@@ -165,36 +158,42 @@ orderApp.get('/orders/owner/:ownerId', async (req, res) => {
       });
     }
 
-    // Format the response to include only relevant products
-    const formattedOrders = orders.map(order => {
-      // Filter products to only include those owned by this owner
-      const ownerProducts = order.products
-        .filter(product => product.ownerId.toString() === ownerId)
-        .map(product => ({
-          ...product.toObject(),
-          productDetails: product.productId ? {
-            _id: product.productId._id,
-            name: product.productId.name,
-            description: product.productId.description,
-            imgUrls: product.productId.imgUrls
-          } : null
-        }));
+    // Format and filter orders to only include relevant products
+    const formattedOrders = orders
+      .map(order => {
+        const filteredProducts = order.products
+          .filter(product => product.ownerId.toString() === ownerId)
+          .map(product => ({
+            ...product.toObject(),
+            productDetails: product.productId ? {
+              _id: product.productId._id,
+              name: product.productId.name,
+              description: product.productId.description,
+              imgUrls: product.productId.imgUrls
+            } : null
+          }));
 
-      return {
-        _id: order._id,
-        customer: order.userId ? {
-          _id: order.userId._id,
-          name: order.userId.username,
-          email: order.userId.email,
-          phone: order.userId.phone
-        } : order.userDetails,
-        products: ownerProducts,
-        totalAmount: ownerProducts.reduce((sum, product) => sum + (product.price * product.quantity), 0),
-        paymentStatus: order.paymentStatus,
-        orderStatus: order.products[0]?.status || 'Pending',
-        orderDate: order.createdAt
-      };
-    });
+        if (!filteredProducts.length) return null; // skip if no products after filtering
+
+        return {
+          _id: order._id,
+          customer: order.userId ? {
+            _id: order.userId._id,
+            name: order.userId.username,
+            email: order.userId.email,
+            phone: order.userId.phone
+          } : order.userDetails,
+          products: filteredProducts,
+          totalAmount: filteredProducts.reduce(
+            (sum, p) => sum + p.price * p.quantity,
+            0
+          ),
+          paymentStatus: order.paymentStatus,
+          orderStatus: filteredProducts[0]?.status || 'Pending',
+          orderDate: order.createdAt
+        };
+      })
+      .filter(Boolean); // remove nulls from skipped orders
 
     res.status(200).json({
       success: true,
