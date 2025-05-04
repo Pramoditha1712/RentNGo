@@ -1,3 +1,4 @@
+// components/Owner.js
 import { Link, Outlet } from "react-router-dom";
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -6,7 +7,7 @@ import { ContextObj } from '../contexts/Contexts';
 
 function Owner() {
   const { userDetails } = useContext(ContextObj);
-  const username = userDetails?.username; // Get from context instead of localStorage
+  const username = userDetails?.username;
 
   return (
     <div>
@@ -29,12 +30,12 @@ function Owner() {
             </li>
             <li className="nav-item">
               <Link className="nav-link text-white" to="owner-products">
-                <i className="fa-solid fa-shop"></i>
+                <i className="fa-solid fa-shop me-2"></i>My Products
               </Link>
             </li>
             <li className="nav-item">
               <Link className="nav-link text-white" to="ordersdisplay">
-                Display
+                <i className="fa-solid fa-box me-2"></i>Display
               </Link>
             </li>
           </ul>

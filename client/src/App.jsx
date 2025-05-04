@@ -1,93 +1,96 @@
-import {createBrowserRouter,RouterProvider} from 'react-router-dom'
-import RootLayout from './components/RootLayout'
-import Home from './components/Home'
-import Register from './components/Register'
-import Login from './components/Login'
-import Rental from './components/rental/Rental'
-import Owner from './components/owner/Owner'
-import Rental_home from './components/rental/Rental_home'
-import Rental_profile from './components/rental/Rental_profile'
-import Owner_addproducts from './components/owner/Owner_addproducts'
-import Owner_profile from './components/owner/Owner_profile'
-import Owner_Products from './components/owner/Owner_Products'
-import Rental_Cart from './components/rental/Rental_Cart'
-import Rental_order from './components/rental/Rental_order'
-import OrderedDetails from './components/rental/OrderedDetails'
-import Orders_Display from './components/owner/Orders_Display'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import RootLayout from './components/RootLayout';
+import Home from './components/Home';
+import Register from './components/Register';
+import Login from './components/Login';
+import Rental from './components/rental/Rental';
+import Owner from './components/owner/Owner';
+import OwnerWelcome from './components/owner/OwnerWelcome';
+import Rental_home from './components/rental/Rental_home';
+import Rental_profile from './components/rental/Rental_profile';
+import Owner_addproducts from './components/owner/Owner_addproducts';
+import Owner_profile from './components/owner/Owner_profile';
+import Owner_Products from './components/owner/Owner_Products';
+import Rental_Cart from './components/rental/Rental_Cart';
+import Rental_order from './components/rental/Rental_order';
+import OrderedDetails from './components/rental/OrderedDetails';
+import Orders_Display from './components/owner/Orders_Display';
 
 function App() {
   const router = createBrowserRouter([
     {
-      path:"",
-      element:<RootLayout />,
-      children:[
+      path: "",
+      element: <RootLayout />,
+      children: [
         {
-          path:"",
-          element:<Home />
+          path: "",
+          element: <Home />
         },
         {
-          path:"register",
-          element:<Register />
+          path: "register",
+          element: <Register />
         },
         {
-          path:"login",
-          element:<Login />
+          path: "login",
+          element: <Login />
         },
         {
-          path:"rental",
-          element:<Rental />,
-          children:[
+          path: "rental",
+          element: <Rental />,
+          children: [
             {
-              path:"",
-              element:<Rental_home />
+              path: "",
+              element: <Rental_home />
             },
             {
-              path:"rentalprofile",
-              element:<Rental_profile />
+              path: "rentalprofile",
+              element: <Rental_profile />
             },
             {
-              path:"rentalcart",
-              element:<Rental_Cart />
+              path: "rentalcart",
+              element: <Rental_Cart />
             },
             {
-              path:"orderedDetails",
-              element:<OrderedDetails/>
+              path: "orderedDetails",
+              element: <OrderedDetails />
             }
           ]
         },
         {
-          path:"owner",
-          element:<Owner />,
-          children:[
+          path: "owner",
+          element: <Owner />,
+          children: [
             {
-              path:"owneraddproducts",
-              element:<Owner_addproducts />
+              index: true, // 👈 welcome page route for /owner
+              element: <OwnerWelcome />
             },
             {
-              path:"owner-products",
-              element:<Owner_Products />
+              path: "owneraddproducts",
+              element: <Owner_addproducts />
             },
             {
-              path:"ordersdisplay",
-              element:<Orders_Display />
+              path: "owner-products",
+              element: <Owner_Products />
             },
-
+            {
+              path: "ordersdisplay",
+              element: <Orders_Display />
+            }
           ]
-          
         },
         {
-          path:"user/name/:username",
-          element:<Owner_profile />
-        },
-
+          path: "user/name/:username",
+          element: <Owner_profile />
+        }
       ]
-    },
-  ])
+    }
+  ]);
+
   return (
     <div>
-      <RouterProvider router={router}></RouterProvider>
+      <RouterProvider router={router} />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

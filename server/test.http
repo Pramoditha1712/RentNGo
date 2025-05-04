@@ -2,7 +2,7 @@
 get http://localhost:6700/order-api/orders/6816580a3123a2572a610c97
 
 ###get orders by owner
-GET http://localhost:6700/order-api/orders/owner/681629e2d4de4172f7c5f969
+GET http://localhost:6700/order-api/orders-with-owners/6816580a3123a2572a610c97
 
 
 ### post order
