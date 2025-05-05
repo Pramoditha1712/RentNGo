@@ -3,72 +3,138 @@ const orderApp = express.Router();
 const Cart = require('../models/cartModel');
 const Order = require('../models/orderModel');
 const User = require('../models/userModel');
-const mongoose=require('mongoose')
+const Razorpay = require('razorpay');
+const mongoose = require('mongoose');
+
+// Initialize Razorpay
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_API_KEY,
+  key_secret: process.env.RAZORPAY_API_SECRET
+});
 
 // Create Order
 orderApp.post('/order', async (req, res) => {
   try {
-    const userId = req.body.userId;
+    const { userId } = req.body;
 
-    // Fetch cart
-    const cart = await Cart.findOne({ userId });
-    if (!cart || cart.products.length === 0) {
-      return res.status(400).json({ message: 'Cart is empty or not found.' });
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'User ID is required' });
     }
 
-    // Fetch user details
-    const user = await User.findById(userId).select('name email phone address');
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    // Check if user exists
+    const user = await User.findById(userId).select('username email phone address');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
 
-    // Prepare order products and total amount
-    const orderProducts = [];
+    // Check if cart exists and has products
+    const cart = await Cart.findOne({ userId });
+    if (!cart || cart.products.length === 0) {
+      return res.status(400).json({ success: false, message: 'Cart is empty or not found' });
+    }
+
     let totalAmount = 0;
+    const orderProducts = [];
+    const ownerCache = new Map();
 
-    for (let item of cart.products) {
-      const owner = await User.findById(item.ownerId).select('name email');
+    for (const item of cart.products) {
+      if (typeof item.price !== 'number' || typeof item.quantity !== 'number' || item.quantity <= 0 || item.price <= 0) {
+        return res.status(400).json({ success: false, message: 'Invalid product data' });
+      }
+
+      if (!ownerCache.has(item.ownerId.toString())) {
+        const owner = await User.findById(item.ownerId).select('username email');
+        if (!owner) {
+          return res.status(404).json({ success: false, message: `Owner ${item.ownerId} not found` });
+        }
+        ownerCache.set(item.ownerId.toString(), owner);
+      }
+
+      const owner = ownerCache.get(item.ownerId.toString());
+      const productTotal = item.price * item.quantity;
+      totalAmount += productTotal;
 
       orderProducts.push({
         productId: item.productId,
         ownerId: item.ownerId,
-        ownerDetails: {
-          name: owner?.name || '',
-          email: owner?.email || '',
-        },
+        ownerDetails: { name: owner.username, email: owner.email },
         name: item.name,
         description: item.description,
         price: item.price,
         quantity: item.quantity,
         imgUrls: item.imgUrls,
+        status: 'Pending'
       });
-
-      totalAmount += item.price * item.quantity;
     }
 
+    // Check if totalAmount is valid
+    if (isNaN(totalAmount) || totalAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid order total' });
+    }
+
+    let receipt = `receipt_${userId}_${Date.now()}`;
+    if (receipt.length > 40) {
+      receipt = receipt.substring(0, 40);  // Ensure it stays within the limit
+    }
+
+    // Create Razorpay Order
+    const razorpayOrder = await razorpay.orders.create({
+      amount: Math.round(totalAmount * 100), // Razorpay expects the amount in paise (i.e., 100 paise = 1 INR)
+      currency: 'INR',
+      receipt: receipt,
+      payment_capture: 1
+    });
+
+    // Validate Razorpay response
+    if (!razorpayOrder || !razorpayOrder.id) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create Razorpay order'
+      });
+    }
+
+    // Create and save the new order in the database
     const newOrder = new Order({
-      userId: userId,
+      userId,
       userDetails: {
-        name: user.name,
+        name: user.username,
         email: user.email,
-        phone: user.phone || '',
-        address: user.address || '',
+        phone: user.phone,
+        address: user.address
       },
       products: orderProducts,
-      totalAmount,
+      amount: totalAmount,
+      paymentStatus: 'Pending',
+      razorpayDetails: {
+        orderId: razorpayOrder.id
+      }
     });
 
     await newOrder.save();
 
-    // Optionally clear cart
-    await Cart.findOneAndDelete({ userId });
+    // Empty the user's cart after the order is created
+    await Cart.updateOne({ userId }, { $set: { products: [] } });
 
-    res.status(201).json({ message: 'Order placed successfully', order: newOrder });
+    // Send success response
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      razorpayOrder,
+      order: newOrder
+    });
   } catch (err) {
-    // console.error(err);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Order creation failed:', err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create order',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
   }
 });
 
-
+// Get orders for a specific user
 orderApp.get('/orders/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -88,7 +154,7 @@ orderApp.get('/orders/:userId', async (req, res) => {
       .sort({ createdAt: -1 });
 
     if (!orders.length) {
-      return res.status(200).json({ 
+      return res.status(200).json({
         success: true,
         orders: [],
         message: 'No orders found'
@@ -106,7 +172,7 @@ orderApp.get('/orders/:userId', async (req, res) => {
           description: product.productId.description,
           imgUrls: product.productId.imgUrls
         } : null,
-        ownerDetails: product.ownerDetails || { // Use embedded details
+        ownerDetails: product.ownerDetails || { 
           name: 'Unknown Owner',
           email: '',
           phone: ''
@@ -120,24 +186,20 @@ orderApp.get('/orders/:userId', async (req, res) => {
     });
 
   } catch (err) {
-    // console.error('Error fetching orders:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: 'Failed to fetch orders',
-      error: err.message 
+      error: err.message
     });
   }
 });
-
-
-
 
 // Get all orders containing products owned by a specific owner
 orderApp.get('/orders-with-owners/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // 1. Validate user ID
+    // Validate user ID
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({
         success: false,
@@ -145,7 +207,7 @@ orderApp.get('/orders-with-owners/:userId', async (req, res) => {
       });
     }
 
-    // 2. Get all orders for the user
+    // Get all orders for the user
     const orders = await Order.find({ userId })
       .sort({ createdAt: -1 })
       .lean();
@@ -158,7 +220,7 @@ orderApp.get('/orders-with-owners/:userId', async (req, res) => {
       });
     }
 
-    // 3. Extract all unique ownerIds from all orders
+    // Extract unique ownerIds from all orders
     const ownerIds = [];
     orders.forEach(order => {
       order.products.forEach(product => {
@@ -168,58 +230,27 @@ orderApp.get('/orders-with-owners/:userId', async (req, res) => {
       });
     });
 
-    // console.log('Looking for owner IDs:', ownerIds);
-
-    // 4. Find matching owners with flexible ID matching
+    // Find matching owners
     const owners = await User.find({
-      $or: [
-        { _id: { $in: ownerIds } }, // Exact match
-        // Flexible matching for potential ID inconsistencies
-        {
-          $expr: {
-            $let: {
-              vars: {
-                ownerIdStr: { $toString: "$_id" }
-              },
-              in: {
-                $or: ownerIds.map(id => ({
-                  $eq: [
-                    { $substrCP: ["$$ownerIdStr", 0, 23] },
-                    id.toString().substring(0, 23)
-                  ]
-                }))
-              }
-            }
-          }
-        }
-      ]
+      _id: { $in: ownerIds }
     }, { username: 1, email: 1, phone: 1 }).lean();
 
-    // console.log('Found owners:', owners);
-
-    // 5. Create owner mapping with flexible matching
+    // Create owner mapping
     const ownerMap = owners.reduce((map, owner) => {
-      const ownerIdStr = owner._id.toString();
-      // Map both full ID and truncated version
-      map[ownerIdStr] = owner;
-      map[ownerIdStr.substring(0, 23)] = owner;
+      map[owner._id.toString()] = owner;
       return map;
     }, {});
 
-    // 6. Enhance orders with owner details
+    // Enhance orders with owner details
     const enhancedOrders = orders.map(order => {
       const enhancedProducts = order.products.map(product => {
-        const productOwnerId = product.ownerId?.toString() || '';
-        // Try full match first, then truncated match
-        const owner = ownerMap[productOwnerId] || 
-                     ownerMap[productOwnerId.substring(0, 23)] || {};
-        
+        const owner = ownerMap[product.ownerId?.toString()] || {};
         return {
           ...product,
           ownerDetails: {
-            name: owner.username || product.ownerDetails?.name || 'Unknown Owner',
-            email: owner.email || product.ownerDetails?.email || '',
-            phone: owner.phone || product.ownerDetails?.phone || ''
+            name: owner.username || 'Unknown Owner',
+            email: owner.email || '',
+            phone: owner.phone || ''
           }
         };
       });
@@ -230,7 +261,6 @@ orderApp.get('/orders-with-owners/:userId', async (req, res) => {
       };
     });
 
-    // 7. Return the enhanced orders
     res.status(200).json({
       success: true,
       message: 'Orders fetched with owner details',
@@ -238,7 +268,6 @@ orderApp.get('/orders-with-owners/:userId', async (req, res) => {
     });
 
   } catch (err) {
-    // console.error('Error fetching orders with owners:', err);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch orders with owner details',
@@ -246,6 +275,5 @@ orderApp.get('/orders-with-owners/:userId', async (req, res) => {
     });
   }
 });
-
 
 module.exports = orderApp;

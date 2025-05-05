@@ -17,7 +17,7 @@ function Rental_Cart() {
 
   const currentUser = userDetails || JSON.parse(localStorage.getItem('loggedInUser'));
   const userId = currentUser?._id;
-
+  const RAZORPAY_KEY_ID="rzp_test_cf3IMTnsiInNqs"
   useEffect(() => {
     if (!currentUser) {
       setError("Please login to view your cart");
@@ -72,6 +72,7 @@ function Rental_Cart() {
   const handleViewOwnerDetails = (ownerDetails) => {
     setSelectedOwner(ownerDetails);
     setShowOwnerModal(true);
+    console.log(ownerDetails)
   };
 
   const handleCloseOwnerModal = () => {
@@ -140,28 +141,86 @@ function Rental_Cart() {
     }, 0);
   };
 
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+  
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+  
   const handleOrderNow = async () => {
     try {
+      setShowConfirmModal(false);
+      setError(null); // Clear previous errors
+      
+      // Load Razorpay script
+      const isRazorpayLoaded = await loadRazorpay();
+      if (!isRazorpayLoaded) {
+        throw new Error('Failed to load payment gateway');
+      }
+  
+      // Create order on backend
       const response = await fetch('http://localhost:6700/order-api/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
       });
-
+  
       const data = await response.json();
-      if (response.ok) {
-        setOrderSuccess(true);
-        setCart({ ...cart, products: [] });
-      } else {
-        throw new Error(data.message || 'Failed to place order');
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create order');
       }
+  
+      const { razorpayOrder } = data;
+  
+      // Razorpay options
+      const options = {
+        key: "rzp_test_cf3IMTnsiInNqs", // Note: Use REACT_APP_ prefix
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: "RentNGo",
+        description: "Rental Payment",
+        image: "/logo.png",
+        order_id: razorpayOrder.id,
+        handler: function(response) {
+          setOrderSuccess(true);
+          setCart({ ...cart, products: [] });
+        },
+        prefill: {
+          name: currentUser.username,
+          email: currentUser.email,
+          contact: currentUser.phone || ''
+        },
+        theme: {
+          color: "#3399cc"
+        },
+        modal: {
+          ondismiss: () => {
+            setError('Payment was cancelled by user');
+          }
+        }
+      };
+  
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+      
+      rzp.on('payment.failed', function(response) {
+        setError(`Payment failed: ${response.error.description}`);
+      });
+  
     } catch (err) {
-      setError(`Error placing order: ${err.message}`);
-    } finally {
-      setShowConfirmModal(false);
+      setError(err.message || 'Error processing payment');
     }
   };
-
+  
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center vh-100">
@@ -301,7 +360,7 @@ function Rental_Cart() {
                             </div>
 
                             <h6 className="mb-0">
-                              ${(product.price * product.quantity).toFixed(2)}
+                            ₹{(product.price * product.quantity).toFixed(2)}
                             </h6>
                           </div>
                         </div>
@@ -327,11 +386,11 @@ function Rental_Cart() {
                 </li>
                 <li className="list-group-item d-flex justify-content-between align-items-center">
                   Estimated Tax:
-                  <span>$0.00</span>
+                  <span>₹0.00</span>
                 </li>
                 <li className="list-group-item d-flex justify-content-between align-items-center fw-bold">
                   Total:
-                  <span>${calculateTotal().toFixed(2)}</span>
+                  <span>₹{calculateTotal().toFixed(2)}</span>
                 </li>
               </ul>
 
