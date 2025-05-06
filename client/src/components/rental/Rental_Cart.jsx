@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ContextObj } from '../contexts/Contexts';
@@ -12,12 +13,14 @@ function Rental_Cart() {
   const [selectedOwner, setSelectedOwner] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState([]);
   const navigate = useNavigate();
   const { userDetails } = useContext(ContextObj);
 
   const currentUser = userDetails || JSON.parse(localStorage.getItem('loggedInUser'));
   const userId = currentUser?._id;
-  const RAZORPAY_KEY_ID="rzp_test_cf3IMTnsiInNqs"
+  const RAZORPAY_KEY_ID = "rzp_test_cf3IMTnsiInNqs";
+
   useEffect(() => {
     if (!currentUser) {
       setError("Please login to view your cart");
@@ -39,7 +42,10 @@ function Rental_Cart() {
 
         const data = await response.json();
         if (data.success && data.payload) {
-          setCart(validateCart(data.payload));
+          const validatedCart = validateCart(data.payload);
+          setCart(validatedCart);
+          // Initialize selectedProducts with all products selected by default
+          setSelectedProducts(validatedCart.products.map(product => product._id));
         } else {
           setError(data.message || "Cart not found");
         }
@@ -69,10 +75,17 @@ function Rental_Cart() {
     };
   };
 
+  const toggleProductSelection = (productId) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
   const handleViewOwnerDetails = (ownerDetails) => {
     setSelectedOwner(ownerDetails);
     setShowOwnerModal(true);
-    console.log(ownerDetails)
   };
 
   const handleCloseOwnerModal = () => {
@@ -113,6 +126,7 @@ function Rental_Cart() {
         ...prevCart,
         products: prevCart.products.filter(product => product._id !== productId)
       }));
+      setSelectedProducts(prev => prev.filter(id => id !== productId));
 
       await fetch(`http://localhost:6700/cart-api/cart/${userId}/${productId}`, {
         method: 'DELETE',
@@ -137,7 +151,10 @@ function Rental_Cart() {
   const calculateTotal = () => {
     if (!cart?.products) return 0;
     return cart.products.reduce((total, product) => {
-      return total + ((product.price || 0) * (product.quantity || 1));
+      if (selectedProducts.includes(product._id)) {
+        return total + ((product.price || 0) * (product.quantity || 1));
+      }
+      return total;
     }, 0);
   };
 
@@ -159,19 +176,38 @@ function Rental_Cart() {
   const handleOrderNow = async () => {
     try {
       setShowConfirmModal(false);
-      setError(null); // Clear previous errors
+      setError(null);
       
-      // Load Razorpay script
+      // Filter products to only include selected ones
+      const productsToOrder = cart.products.filter(product => 
+        selectedProducts.includes(product._id)
+      );
+
+      if (productsToOrder.length === 0) {
+        throw new Error('Please select at least one product to order');
+      }
+
       const isRazorpayLoaded = await loadRazorpay();
       if (!isRazorpayLoaded) {
         throw new Error('Failed to load payment gateway');
       }
   
-      // Create order on backend
+      // Create order on backend with only selected products
       const response = await fetch('http://localhost:6700/order-api/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify({ 
+          userId,
+          products: productsToOrder.map(product => ({
+            productId: product._id,
+            ownerId: product.ownerId,
+            name: product.name,
+            description: product.description,
+            price: product.price,
+            imgUrls: product.imgUrls,
+            quantity: product.quantity
+          }))
+        })
       });
   
       const data = await response.json();
@@ -181,9 +217,8 @@ function Rental_Cart() {
   
       const { razorpayOrder } = data;
   
-      // Razorpay options
       const options = {
-        key: "rzp_test_cf3IMTnsiInNqs", // Note: Use REACT_APP_ prefix
+        key: RAZORPAY_KEY_ID,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
         name: "RentNGo",
@@ -192,7 +227,13 @@ function Rental_Cart() {
         order_id: razorpayOrder.id,
         handler: function(response) {
           setOrderSuccess(true);
-          setCart({ ...cart, products: [] });
+          // Remove ordered products from cart
+          setCart(prev => ({
+            ...prev,
+            products: prev.products.filter(product => 
+              !selectedProducts.includes(product._id))
+          }));
+          setSelectedProducts([]);
         },
         prefill: {
           name: currentUser.username,
@@ -220,7 +261,7 @@ function Rental_Cart() {
       setError(err.message || 'Error processing payment');
     }
   };
-  
+
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center vh-100">
@@ -322,12 +363,24 @@ function Rental_Cart() {
                         <div className="card-body">
                           <div className="d-flex justify-content-between">
                             <h5 className="card-title">{product.name || 'Unnamed product'}</h5>
-                            <button
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => handleRemoveItem(product._id)}
-                            >
-                              <i className="bi bi-trash"></i> Remove
-                            </button>
+                            <div>
+                              <button
+                                className={`btn btn-sm me-2 ${
+                                  selectedProducts.includes(product._id)
+                                    ? 'btn-success'
+                                    : 'btn-outline-secondary'
+                                }`}
+                                onClick={() => toggleProductSelection(product._id)}
+                              >
+                                {selectedProducts.includes(product._id) ? 'Selected' : 'Select'}
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => handleRemoveItem(product._id)}
+                              >
+                                <i className="bi bi-trash"></i> Remove
+                              </button>
+                            </div>
                           </div>
                           <p className="card-text text-muted small">{product.description || 'No description available'}</p>
 
@@ -360,7 +413,10 @@ function Rental_Cart() {
                             </div>
 
                             <h6 className="mb-0">
-                            ₹{(product.price * product.quantity).toFixed(2)}
+                              ₹{(product.price * product.quantity).toFixed(2)}
+                              {!selectedProducts.includes(product._id) && (
+                                <span className="text-muted small ms-2">(not selected)</span>
+                              )}
                             </h6>
                           </div>
                         </div>
@@ -381,8 +437,12 @@ function Rental_Cart() {
             <div className="card-body">
               <ul className="list-group list-group-flush">
                 <li className="list-group-item d-flex justify-content-between align-items-center">
+                  Selected Items:
+                  <span>{selectedProducts.length}</span>
+                </li>
+                <li className="list-group-item d-flex justify-content-between align-items-center">
                   Subtotal:
-                  <span>${calculateTotal().toFixed(2)}</span>
+                  <span>₹{calculateTotal().toFixed(2)}</span>
                 </li>
                 <li className="list-group-item d-flex justify-content-between align-items-center">
                   Estimated Tax:
@@ -397,8 +457,9 @@ function Rental_Cart() {
               <button
                 className="btn btn-success w-100 mt-3 py-2"
                 onClick={() => setShowConfirmModal(true)}
+                disabled={selectedProducts.length === 0}
               >
-                Order Now
+                Order Now ({selectedProducts.length})
               </button>
             </div>
           </div>
@@ -434,7 +495,8 @@ function Rental_Cart() {
           <Modal.Title>Confirm Your Order</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <p>Are you sure you want to place this order for ${calculateTotal().toFixed(2)}?</p>
+          <p>Are you sure you want to place an order for {selectedProducts.length} selected items?</p>
+          <p className="fw-bold">Total Amount: ₹{calculateTotal().toFixed(2)}</p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>

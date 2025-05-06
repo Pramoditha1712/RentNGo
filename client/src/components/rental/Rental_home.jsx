@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { productObj } from "../contexts/ProductsContext";
 import { useOutletContext } from "react-router-dom";
 import { toast } from 'react-toastify';
+import Modal from 'react-bootstrap/Modal';
 
 function Rental_home() {
   const [successMessages, setSuccessMessages] = useState({});
@@ -9,6 +10,8 @@ function Rental_home() {
   const { searchQuery } = useOutletContext();
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loadingStates, setLoadingStates] = useState({});
+  const [showModal, setShowModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
 
   // Fetch product data when the component mounts
   useEffect(() => {
@@ -26,6 +29,11 @@ function Rental_home() {
       setFilteredProducts(filtered);
     }
   }, [searchQuery, productDetails]);
+
+  const handleImageClick = (imgUrl) => {
+    setSelectedImage(imgUrl);
+    setShowModal(true);
+  };
 
   async function handleAddToCart(product) {
     const user = JSON.parse(localStorage.getItem('loggedInUser'));
@@ -82,6 +90,20 @@ function Rental_home() {
   return (
     <div className="container py-4">
       <h2 className="text-center mb-4">All Rental Products</h2>
+      
+      {/* Image Zoom Modal */}
+      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg">
+        <Modal.Body className="p-0">
+          <img 
+            src={selectedImage} 
+            alt="Zoomed product" 
+            className="img-fluid w-100"
+            style={{ cursor: 'zoom-out' }}
+            onClick={() => setShowModal(false)}
+          />
+        </Modal.Body>
+      </Modal>
+
       <div className="row">
         {filteredProducts.length === 0 ? (
           <p className="text-center">No products available.</p>
@@ -94,7 +116,12 @@ function Rental_home() {
                     src={product.imgUrls[0]}
                     className="card-img-top"
                     alt={product.nameOfProduct}
-                    style={{ height: "400px", objectFit: "cover" }}
+                    style={{ 
+                      height: "400px", 
+                      objectFit: "cover",
+                      cursor: 'zoom-in'
+                    }}
+                    onClick={() => handleImageClick(product.imgUrls[0])}
                   />
                 )}
                 <div className="card-body">
@@ -128,13 +155,12 @@ function Rental_home() {
                     'Not Available'
                   )}
                 </button>
-                {/* Inside your product card, after the button */}
-{successMessages[product._id] && (
-  <div className="text-center text-success mb-2">
-    <i className="bi bi-check-circle-fill me-2"></i>
-    Added to cart!
-  </div>
-)}
+                {successMessages[product._id] && (
+                  <div className="text-center text-success mb-2">
+                    <i className="bi bi-check-circle-fill me-2"></i>
+                    Added to cart!
+                  </div>
+                )}
               </div>
             </div>
           ))

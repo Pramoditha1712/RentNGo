@@ -19,27 +19,37 @@ const Rental_profile = () => {
 
   useEffect(() => {
     const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
-
+    console.log("Logged in user:", loggedInUser); // Debug
+  
     if (loggedInUser) {
       handleRental({ username: loggedInUser.username, usertype: loggedInUser.usertype });
-
-      // Fetch user orders with owner details
-      axios
-        .get(`http://localhost:6700/order-api/orders-with-owners/${loggedInUser._id}`)
+  
+      // Try both possible endpoints
+      axios.get(`http://localhost:6700/order-api/orders/${loggedInUser._id}`) // Try standard orders endpoint
         .then((res) => {
+          console.log("Orders API response:", res.data); // Debug
           if (res.data.success) {
-            setOrders(res.data.orders);
+            setOrders(res.data.orders || res.data.payload || []);
           } else {
-            console.log("No orders found.");
+            console.log("No orders found in standard endpoint");
+            // Fallback to owner endpoint
+            return axios.get(`http://localhost:6700/order-api/orders-with-owners/${loggedInUser._id}`);
           }
-          setOrderLoading(false);
+        })
+        .then((res) => {
+          if (res && res.data) { // Only if fallback was used
+            console.log("Fallback orders response:", res.data);
+            if (res.data.success) {
+              setOrders(res.data.orders || []);
+            }
+          }
         })
         .catch((err) => {
           console.error("Error fetching orders:", err);
+        })
+        .finally(() => {
           setOrderLoading(false);
         });
-    } else {
-      console.log("No logged-in user found in localStorage");
     }
   }, [handleRental]);
 

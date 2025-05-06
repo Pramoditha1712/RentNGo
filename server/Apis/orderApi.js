@@ -187,53 +187,62 @@ orderApp.get('/orders-with-owners/:userId', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid user ID format' });
     }
 
-    const orders = await Order.find({ userId }).sort({ createdAt: -1 }).lean();
+    // Find all orders that have at least one product owned by this user
+    const orders = await Order.find({
+      'products.ownerId': userId
+    }).sort({ createdAt: -1 }).lean();
+
     if (!orders.length) {
       return res.status(200).json({ success: true, orders: [], message: 'No orders found' });
     }
 
-    const ownerIds = new Set();
-    orders.forEach(o =>
-      o.products.forEach(p => ownerIds.add(p.ownerId.toString()))
-    );
+    // Filter products to only include those owned by this user
+    const filteredOrders = orders.map(order => {
+      return {
+        ...order,
+        products: order.products.filter(p => p.ownerId?.toString() === userId)
+      };
+    });
 
-    const owners = await User.find(
-      { userid: { $in: Array.from(ownerIds) } },
-      { username: 1, email: 1, phone: 1, userid: 1 }
+    // Get user details for the buyers (not owners)
+    const buyerIds = [...new Set(orders.map(o => o.userId.toString()))];
+    const buyers = await User.find(
+      { _id: { $in: buyerIds } },
+      { username: 1, email: 1, phone: 1 }
     ).lean();
 
-    const ownerMap = owners.reduce((map, o) => {
-      map[o.userid.toString()] = o;
+    const buyerMap = buyers.reduce((map, buyer) => {
+      map[buyer._id.toString()] = buyer;
       return map;
     }, {});
 
-    const enhanced = orders.map(o => ({
-      ...o,
-      products: o.products.map(p => {
-        const owner = ownerMap[p.ownerId.toString()] || {};
-        return {
-          ...p,
-          ownerDetails: {
-            name: owner.username || 'Unknown Owner',
-            email: owner.email || '',
-            phone: owner.phone || ''
-          }
-        };
-      })
-    }));
+    // Enhance orders with buyer details
+    const enhancedOrders = filteredOrders.map(order => {
+      const buyer = buyerMap[order.userId.toString()] || {};
+      return {
+        ...order,
+        userDetails: {
+          name: buyer.username || 'Unknown Buyer',
+          email: buyer.email || '',
+          phone: buyer.phone || '',
+          address: order.userDetails?.address || ''
+        }
+      };
+    });
 
     res.status(200).json({
       success: true,
-      message: 'Orders fetched with owner details',
-      orders: enhanced
+      message: 'Orders fetched successfully',
+      orders: enhancedOrders
     });
   } catch (err) {
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch orders with owner details',
+      message: 'Failed to fetch orders',
       error: err.message
     });
   }
 });
+
 
 module.exports = orderApp;
