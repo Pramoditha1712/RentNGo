@@ -1,8 +1,12 @@
 import React from 'react'
-
+// import homeImage from './image/homeImage.jpg'
 function Home() {
   return (
-    <div>Home</div>
+    <div>
+      <div className='card'>
+        <img src="" alt="" />
+      </div>
+    </div>
   )
 }
 

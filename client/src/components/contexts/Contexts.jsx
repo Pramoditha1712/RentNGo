@@ -13,9 +13,8 @@ function Contexts({ children }) {
     if (userDetails === null) {
       localStorage.removeItem("loggedInUser");
     }
-    setUserDetails(userDetails)
-    // console.log("context",userDetails)
   }, [userDetails]);
+  
   
 
   
